@@ -1,0 +1,659 @@
+{
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": 1,
+      "metadata": {
+        "id": "jv7FAq1EgMcp"
+      },
+      "outputs": [],
+      "source": [
+        "import requests\n",
+        "import re\n",
+        "import os\n",
+        "import sys\n",
+        "from os import listdir\n",
+        "from os.path import isfile, isdir, join\n",
+        "import string\n",
+        "from math import log, sqrt\n",
+        "import numpy as np"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 2,
+      "metadata": {
+        "id": "YgGjNSLkgZh_"
+      },
+      "outputs": [],
+      "source": [
+        "S = requests.Session()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 3,
+      "metadata": {
+        "id": "Sg_CwMuzggCx"
+      },
+      "outputs": [],
+      "source": [
+        "URL = \"https://tr.wikipedia.org/w/api.php\"\n",
+        "PARAMS = {\n",
+        "    \"action\": \"query\",\n",
+        "    \"format\": \"json\",\n",
+        "    \"list\": \"allcategories\",\n",
+        "    \"acmin\": 100,\n",
+        "    \"aclimit\": 500\n",
+        "}"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 4,
+      "metadata": {
+        "id": "dDArwxXrgzxJ"
+      },
+      "outputs": [],
+      "source": [
+        "f = open(\"wiki_categories.txt\",'w')\n",
+        "for i in range(100):\n",
+        "    R = S.get(url=URL, params=PARAMS)\n",
+        "    DATA = R.json()\n",
+        "\n",
+        "    CATEGORIES = DATA[\"query\"][\"allcategories\"]\n",
+        "\n",
+        "    for cat in CATEGORIES:\n",
+        "        cat_name = cat[\"*\"]\n",
+        "        m = re.search(\"[0-9]{4}\",cat_name)\n",
+        "        if not m:\n",
+        "            f.write(cat_name+'\\n')\n",
+        "\n",
+        "    if \"continue\" in DATA:\n",
+        "        PARAMS[\"acfrom\"] = DATA[\"continue\"][\"accontinue\"]\n",
+        "    else:\n",
+        "        break\n",
+        "\n",
+        "f.close()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 5,
+      "metadata": {
+        "id": "Tv_1z2M5hreK"
+      },
+      "outputs": [],
+      "source": [
+        "def read_categories():\n",
+        "    with open(\"tmp_cat.txt\",'r', encoding=\"utf-8\") as f:\n",
+        "        categories = f.read().splitlines()\n",
+        "    return categories"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "an_jgttWl3oD"
+      },
+      "outputs": [],
+      "source": [
+        "categories = read_categories()\n",
+        "print(categories)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 7,
+      "metadata": {
+        "id": "EG034I8om2tD"
+      },
+      "outputs": [],
+      "source": [
+        "if not os.path.isdir(\"./categories\"):\n",
+        "  os.mkdir(\"categories\")\n",
+        "for cat in categories:\n",
+        "    cat = cat.replace(\"\\ufeff\", \"\")\n",
+        "    cat_dir = \"categories/\"+cat.replace(' ','_')\n",
+        "    if not os.path.isdir(cat_dir):\n",
+        "        os.mkdir(cat_dir)\n",
+        "    title_file = open(os.path.join(cat_dir,\"titles.txt\"),'w')\n",
+        "\n",
+        "    PARAMS = {\n",
+        "        \"action\": \"query\",\n",
+        "        \"list\": \"categorymembers\",\n",
+        "        \"format\": \"json\",\n",
+        "        \"cmtitle\": \"Category:\"+cat,\n",
+        "        \"cmlimit\": \"100\"\n",
+        "    }\n",
+        "\n",
+        "    for i in range(5):\n",
+        "        R = S.get(url=URL, params=PARAMS)\n",
+        "        DATA = R.json()\n",
+        "\n",
+        "        PAGES = DATA[\"query\"][\"categorymembers\"]\n",
+        "\n",
+        "        for page in PAGES:\n",
+        "            title = page[\"title\"]\n",
+        "            ID = str(page[\"pageid\"])\n",
+        "            if title[:9] != \"Kategori:\":\n",
+        "                title_file.write(ID+' '+title+'\\n')\n",
+        "\n",
+        "        if \"continue\" in DATA:\n",
+        "            PARAMS[\"cmcontinue\"] = DATA[\"continue\"][\"cmcontinue\"]\n",
+        "        else:\n",
+        "            break\n",
+        "\n",
+        "    title_file.close()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 8,
+      "metadata": {
+        "id": "Hwz6lpV0vBTD"
+      },
+      "outputs": [],
+      "source": [
+        "def read_titles(filename):\n",
+        "    IDs = []\n",
+        "    titles = []\n",
+        "    f = open(filename,'r')\n",
+        "    for l in f:\n",
+        "        l.rstrip('\\n')\n",
+        "        IDs.append(l.split()[0])\n",
+        "        titles.append(' '.join(l.split()[1:]))\n",
+        "    return IDs,titles"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "Qmg9GT0EvTZf"
+      },
+      "outputs": [],
+      "source": [
+        "for cat in categories:\n",
+        "    cat = cat.replace(\"\\ufeff\", \"\")\n",
+        "    print(\"Processing category\",cat)\n",
+        "    cat_dir = \"categories/\"+cat.replace(' ','_')\n",
+        "    title_file = os.path.join(cat_dir,\"titles.txt\")\n",
+        "    IDs, titles = read_titles(title_file)\n",
+        "\n",
+        "    content_file = open(os.path.join(cat_dir,\"linear.txt\"),'w')\n",
+        "\n",
+        "    for i in range(len(titles)):\n",
+        "        PARAMS = {\n",
+        "            \"action\": \"query\",\n",
+        "            \"prop\": \"extracts\",\n",
+        "            \"format\": \"json\",\n",
+        "            \"exintro\": True,\n",
+        "            \"explaintext\": True,\n",
+        "            \"redirects\": True,\n",
+        "            \"titles\": titles[i]\n",
+        "        }\n",
+        "\n",
+        "        R = S.get(url=URL, params=PARAMS)\n",
+        "        DATA = R.json()\n",
+        "\n",
+        "        PAGES = DATA[\"query\"][\"pages\"]\n",
+        "\n",
+        "        for page in PAGES:\n",
+        "            extract = PAGES[page][\"extract\"]\n",
+        "            content_file.write(\"<doc id=\\\"\"+IDs[i]+\"\\\" title=\\\"\"+titles[i]+\"\\\">\\n\")\n",
+        "            content_file.write(extract+'\\n')\n",
+        "            content_file.write(\"</doc>\\n\\n\")\n",
+        "\n",
+        "    content_file.close()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "20vqbZHI5RMt"
+      },
+      "outputs": [],
+      "source": [
+        "d = './categories'\n",
+        "catdirs = [join(d,o) for o in listdir(d) if isdir(join(d,o))]\n",
+        "\n",
+        "ng = int(input(\"The size of n-grams: \"))\n",
+        "\n",
+        "for cat in catdirs:\n",
+        "    ngrams = {}\n",
+        "    f = open(join(cat,'linear.txt'),'r')\n",
+        "    for l in f:\n",
+        "        if \"<doc id\" not in l and \"</doc\" not in l:\n",
+        "            l = l.rstrip('\\n').lower()\n",
+        "            for i in range(len(l)-ng+1):\n",
+        "                ngram = l[i:i+ng]\n",
+        "\n",
+        "                if ngram in ngrams:\n",
+        "                    ngrams[ngram]+=1\n",
+        "                else:\n",
+        "                    ngrams[ngram]=1\n",
+        "    f.close()\n",
+        "\n",
+        "    ngramfile = open(join(cat,\"linear.\"+str(ng)+\".ngrams\"),'w')\n",
+        "    for k in sorted(ngrams, key=ngrams.get, reverse=True):\n",
+        "        ngramfile.write(k+'\\t'+str(ngrams[k])+'\\n')\n",
+        "    ngramfile.close()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 26,
+      "metadata": {
+        "id": "nfY_vruJD2I_"
+      },
+      "outputs": [],
+      "source": [
+        "def contain_punctuation(s):\n",
+        "    punctuation = [c for c in string.punctuation]\n",
+        "    punctuation.append(' ')\n",
+        "    r = any(c in s for c in punctuation)\n",
+        "    return r"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 27,
+      "metadata": {
+        "id": "gA9FHXk5D9jN"
+      },
+      "outputs": [],
+      "source": [
+        "def normalise_tfs(tfs,total):\n",
+        "    for k,v in tfs.items():\n",
+        "        tfs[k] = v / total\n",
+        "    return tfs"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 28,
+      "metadata": {
+        "id": "KFXMZmX_EZaR"
+      },
+      "outputs": [],
+      "source": [
+        "def log_idfs(idfs,num_cats):\n",
+        "    for k,v in idfs.items():\n",
+        "        idfs[k] = log(num_cats / v)\n",
+        "    return idfs"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "jDSaWNLCEd8R"
+      },
+      "outputs": [],
+      "source": [
+        "cat_tfs = {}\n",
+        "cat_tf_idfs = {}\n",
+        "idfs = {}\n",
+        "\n",
+        "for cat in catdirs:\n",
+        "    tfs = {}\n",
+        "    sum_freqs = 0\n",
+        "    #print(\"Processing\",filename,\"...\")\n",
+        "    ngram_files = [join(cat,f) for f in listdir(cat) if isfile(join(cat, f)) and '.ngrams' in f]\n",
+        "    for ngram_file in ngram_files:\n",
+        "        f = open(ngram_file,'r')\n",
+        "        for l in f:\n",
+        "            l = l.rstrip()\n",
+        "            ngram = '\\t'.join(i for i in l.split('\\t')[:-1])\n",
+        "            freq = int(l.split('\\t')[-1])\n",
+        "            tfs[ngram] = freq\n",
+        "            sum_freqs+=freq\n",
+        "            if ngram in idfs:\n",
+        "                idfs[ngram]+=1\n",
+        "            else:\n",
+        "                idfs[ngram]=1\n",
+        "        f.close()\n",
+        "\n",
+        "    tfs = normalise_tfs(tfs,sum_freqs)\n",
+        "    cat_tfs[cat] = tfs\n",
+        "\n",
+        "    #for k in sorted(idfs, key=tfs.get, reverse=True)[:10]:\n",
+        "        #print(k,idfs[k])\n",
+        "\n",
+        "idfs = log_idfs(idfs, len(catdirs))\n",
+        "\n",
+        "vocab=[]\n",
+        "\n",
+        "for cat in catdirs:\n",
+        "    tf_idfs = {}\n",
+        "    tfs = cat_tfs[cat]\n",
+        "    for ngram,tf in tfs.items():\n",
+        "        tf_idfs[ngram] = tf * idfs[ngram]\n",
+        "    cat_tf_idfs[cat] = tf_idfs\n",
+        "\n",
+        "    c = 0\n",
+        "    for k in sorted(tf_idfs, key=tf_idfs.get, reverse=True):\n",
+        "        if c == 100:\n",
+        "            break\n",
+        "        if k not in vocab and not contain_punctuation(k):\n",
+        "            vocab.append(k)\n",
+        "            c+=1\n",
+        "\n",
+        "print(\"VOCAB SIZE:\",len(vocab))\n",
+        "\n",
+        "for cat in catdirs:\n",
+        "    tf_idfs = cat_tf_idfs[cat]\n",
+        "    f = open(join(cat,'tf_idfs.txt'),'w')\n",
+        "    for ngram in sorted(vocab):\n",
+        "        if ngram in tf_idfs:\n",
+        "            f.write(ngram+' '+str(tf_idfs[ngram])+'\\n')\n",
+        "        else:\n",
+        "            f.write(ngram+' 0.0\\n')\n",
+        "    f.close()\n",
+        "\n",
+        "\n",
+        "vocab_file = open(\"./vocab_file.txt\",'w')\n",
+        "for ngram in sorted(vocab):\n",
+        "    vocab_file.write(ngram+'\\n')\n",
+        "vocab_file.close()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 30,
+      "metadata": {
+        "id": "7OTUj57yG4Ve"
+      },
+      "outputs": [],
+      "source": [
+        "def read_vocab2():\n",
+        "    i_to_ngrams = {}\n",
+        "    ngrams_to_i = {}\n",
+        "    c = 0\n",
+        "    f = open('./vocab_file.txt','r')\n",
+        "    for l in f:\n",
+        "        l = l.rstrip()\n",
+        "        i_to_ngrams[c] = l\n",
+        "        ngrams_to_i = c\n",
+        "        c+=1\n",
+        "    return i_to_ngrams, ngrams_to_i"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 31,
+      "metadata": {
+        "id": "dnin_1ojIzDA"
+      },
+      "outputs": [],
+      "source": [
+        "def read_vocab():\n",
+        "    with open('vocab_file.txt','r', encoding=\"utf-8\") as f:\n",
+        "        vocab = f.read().splitlines()\n",
+        "    return vocab"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "S6gjSUYrI4B8"
+      },
+      "outputs": [],
+      "source": [
+        "catdirs = [join(d,o) for o in listdir(d) if isdir(join(d,o))]\n",
+        "vocab = sorted(vocab)\n",
+        "print(vocab)\n",
+        "vector_file = open('./category_vectors.txt','w')\n",
+        "\n",
+        "for cat in catdirs:\n",
+        "    print(cat)\n",
+        "    vec = np.zeros(len(vocab))\n",
+        "    f = open(join(cat,'tf_idfs.txt'),'r')\n",
+        "    for l in f:\n",
+        "        l = l.rstrip('\\n')\n",
+        "        ngram = ' '.join([i for i in l.split()[:-1]])\n",
+        "        tf_idf = float(l.split()[-1])\n",
+        "        pos = vocab.index(ngram)\n",
+        "        vec[pos] = tf_idf\n",
+        "    f.close()\n",
+        "\n",
+        "    vector_file.write(cat+' '+' '.join([str(v) for v in vec])+'\\n')\n",
+        "vector_file.close()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 33,
+      "metadata": {
+        "id": "9wWuVRyJKa2q"
+      },
+      "outputs": [],
+      "source": [
+        "def cosine_similarity(v1, v2):\n",
+        "    num = np.dot(v1, v2)\n",
+        "    den_a = np.dot(v1, v1)\n",
+        "    den_b = np.dot(v2, v2)\n",
+        "    return num / (sqrt(den_a) * sqrt(den_b))"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 34,
+      "metadata": {
+        "id": "k_qmz8h3Ki9M"
+      },
+      "outputs": [],
+      "source": [
+        "def read_queries(query_file):\n",
+        "    with open(query_file, encoding=\"utf-8\") as f:\n",
+        "        queries = f.read().splitlines()\n",
+        "    return queries"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 35,
+      "metadata": {
+        "id": "YALOJd-fKkpu"
+      },
+      "outputs": [],
+      "source": [
+        "def read_category_vectors():\n",
+        "    vectors = {}\n",
+        "    f = open('./category_vectors.txt','r')\n",
+        "    for l in f:\n",
+        "        l = l.rstrip('\\n')\n",
+        "        fields = l.split()\n",
+        "        cat = fields[0]\n",
+        "        vec = np.array([float(v) for v in fields[1:]])\n",
+        "        vectors[cat] = vec\n",
+        "    return vectors"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 36,
+      "metadata": {
+        "id": "mTzYw3d3LDnX"
+      },
+      "outputs": [],
+      "source": [
+        "def get_ngrams(l,n):\n",
+        "    l = l.lower()\n",
+        "    ngrams = {}\n",
+        "    for i in range(0,len(l)-n+1):\n",
+        "        ngram = l[i:i+n]\n",
+        "        if ngram in ngrams:\n",
+        "            ngrams[ngram]+=1\n",
+        "        else:\n",
+        "            ngrams[ngram]=1\n",
+        "    return ngrams\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 37,
+      "metadata": {
+        "id": "VryiUvNRLPtJ"
+      },
+      "outputs": [],
+      "source": [
+        "def mk_vector(vocab,tfs):\n",
+        "    vec = np.zeros(len(vocab))\n",
+        "    for t,f in tfs.items():\n",
+        "        if t in vocab:\n",
+        "            pos = vocab.index(t)\n",
+        "            vec[pos] = f\n",
+        "    return vec"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 38,
+      "metadata": {
+        "id": "9igCTmSfNgqB"
+      },
+      "outputs": [],
+      "source": [
+        "def tf_idf_calc(d):\n",
+        "  page_tfs = {}\n",
+        "  page_tf_idfs = {}\n",
+        "  idfs = {}\n",
+        "  for page, p_ngrams in d.items():\n",
+        "    tfs = {}\n",
+        "    sum_freqs = 0\n",
+        "    for ngram,f in p_ngrams.items():\n",
+        "      freq = int(f)\n",
+        "      tfs[ngram] = freq\n",
+        "      sum_freqs += freq\n",
+        "      if ngram in idfs:\n",
+        "        idfs[ngram]+=1\n",
+        "      else:\n",
+        "        idfs[ngram]=1\n",
+        "    tfs = normalise_tfs(tfs,sum_freqs)\n",
+        "    page_tfs[page]=tfs\n",
+        "  idfs = log_idfs(idfs,len(d))\n",
+        "\n",
+        "  vocab = []\n",
+        "  for page in d:\n",
+        "    tf_idfs = {}\n",
+        "    tfs = page_tfs[page]\n",
+        "    for ngram,tf in tfs.items():\n",
+        "      tf_idfs[ngram] = tf*idfs[ngram]\n",
+        "    page_tf_idfs[page] = tf_idfs\n",
+        "    c = 0\n",
+        "    for k in sorted(tf_idfs, key=tf_idfs.get,reverse=True):\n",
+        "      if c == 100:\n",
+        "        break\n",
+        "      if k not in vocab and not contain_punctuation(k):\n",
+        "        vocab.append(k)\n",
+        "        c+=1\n",
+        "  final_tf_idfs = {}\n",
+        "  for page in d:\n",
+        "    tf_idfs = page_tf_idfs[page]\n",
+        "    p_tf_idfs = {}\n",
+        "    for ngram in sorted(vocab):\n",
+        "      if ngram in tf_idfs:\n",
+        "        p_tf_idfs[ngram] = tf_idfs[ngram]\n",
+        "      else:\n",
+        "        p_tf_idfs[ngram] = float(0)\n",
+        "    final_tf_idfs[page] = p_tf_idfs\n",
+        "  return final_tf_idfs, vocab"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "9hVVF92XLjOo"
+      },
+      "outputs": [],
+      "source": [
+        "vectors = read_category_vectors()\n",
+        "queries = read_queries(\"query_file.txt\")\n",
+        "\n",
+        "for q in queries:\n",
+        "    main_cat = \"\"\n",
+        "    print(\"\\nQUERY:\",q)\n",
+        "    q_ngrams = {}\n",
+        "    cosines = {}\n",
+        "    for i in range(4,7):\n",
+        "        n = get_ngrams(q,i)\n",
+        "        q_ngrams = {**q_ngrams, **n}\n",
+        "    print(q_ngrams)\n",
+        "    qvec = mk_vector(vocab,q_ngrams)\n",
+        "    for cat,vec in vectors.items():\n",
+        "        cosines[cat] = cosine_similarity(vec,qvec)\n",
+        "    for cat in sorted(cosines, key=cosines.get, reverse=True):\n",
+        "        if main_cat == \"\":\n",
+        "          main_cat = cat\n",
+        "    if np.count_nonzero(qvec) == 0:\n",
+        "      print(\"No results found\")\n",
+        "    else:\n",
+        "      f = open(join(main_cat,'linear.txt'),'r')\n",
+        "      output = {}\n",
+        "      l = f.readline()\n",
+        "      while l:\n",
+        "        if \"<doc id=\" in l:\n",
+        "          title = l[l.rfind(\"=\")+2:-3]\n",
+        "          doc = \"\"\n",
+        "          l = f.readline()\n",
+        "          while \"</doc>\" not in l:\n",
+        "            doc+=l\n",
+        "            l = f.readline()\n",
+        "          output[title] = doc\n",
+        "        l = f.readline()\n",
+        "      f.close()\n",
+        "      f_output = {}\n",
+        "      for k,v in output.items():\n",
+        "        ngrams={}\n",
+        "        v = re.sub(\"\\n\",\"\",v)\n",
+        "        v = v.lower()\n",
+        "        for i in range(len(v)-ng+1):\n",
+        "           ngram = v[i:i+ng]\n",
+        "           if ngram in ngrams:\n",
+        "              ngrams[ngram]+=1\n",
+        "           else:\n",
+        "              ngrams[ngram]=1\n",
+        "        f_output[k] = ngrams\n",
+        "      final_measures, page_vocab = tf_idf_calc(f_output)\n",
+        "      vecs = {}\n",
+        "      for page, ngrams in final_measures.items():\n",
+        "        vec = np.zeros(len(page_vocab))\n",
+        "        for ngram,tf_idf in ngrams.items():\n",
+        "          tf_idf = float(tf_idf)\n",
+        "          pos = page_vocab.index(ngram)\n",
+        "          vec[pos] = tf_idf\n",
+        "        vecs[page] = vec\n",
+        "      page_cosines = {}\n",
+        "      page_qvec = mk_vector(page_vocab,q_ngrams)\n",
+        "      for page,vec in vecs.items():\n",
+        "        page_cosines[page] = cosine_similarity(vec,page_qvec)\n",
+        "      b = False\n",
+        "      for page in sorted(page_cosines, key=page_cosines.get,reverse=True):\n",
+        "        if b == False:\n",
+        "          print(page,page_cosines[page])\n",
+        "          b = True\n",
+        "      b = False"
+      ]
+    }
+  ],
+  "metadata": {
+    "colab": {
+      "provenance": []
+    },
+    "kernelspec": {
+      "display_name": "Python 3",
+      "name": "python3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 0
+}
